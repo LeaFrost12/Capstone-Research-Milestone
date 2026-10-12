@@ -1,69 +1,68 @@
-import Image from "next/image";
+"use client";
+
+import { FormEvent, ReactNode, useMemo, useState } from "react";
+
+type WalletCard = { id: number; name: string; issuer: string; annualFee: number; rewardType: string; notes: string };
+type FormErrors = Partial<Record<keyof Omit<WalletCard, "id">, string>>;
+
+const starterCards: WalletCard[] = [
+  { id: 1, name: "Gold Rewards", issuer: "Northstar Bank", annualFee: 95, rewardType: "Travel points", notes: "Use for flights and hotels." },
+  { id: 2, name: "Everyday Cash", issuer: "Harbor Credit", annualFee: 0, rewardType: "Cash back", notes: "Good for groceries and bills." },
+];
+const rewardTypes = ["Cash back", "Travel points", "Miles", "Store rewards", "Other"];
+const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 export default function Home() {
+  const [cards, setCards] = useState<WalletCard[]>(starterCards);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const totalAnnualFees = useMemo(() => cards.reduce((total, card) => total + card.annualFee, 0), [cards]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const name = String(data.get("name") ?? "").trim();
+    const issuer = String(data.get("issuer") ?? "").trim();
+    const annualFeeText = String(data.get("annualFee") ?? "").trim();
+    const annualFee = Number(annualFeeText);
+    const rewardType = String(data.get("rewardType") ?? "");
+    const notes = String(data.get("notes") ?? "").trim();
+    const nextErrors: FormErrors = {};
+    if (!name) nextErrors.name = "Please enter a card name.";
+    if (!issuer) nextErrors.issuer = "Please enter an issuer.";
+    if (!annualFeeText || !Number.isFinite(annualFee) || annualFee < 0) nextErrors.annualFee = "Enter $0 or a positive amount.";
+    if (!rewardType) nextErrors.rewardType = "Please select a reward type.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+    setCards((current) => [...current, { id: Date.now(), name, issuer, annualFee, rewardType, notes }]);
+    event.currentTarget.reset();
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-[#f7f7fb] text-slate-800">
+      <div className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+        <header className="mb-8 border-b border-slate-200 pb-5">
+          <h1 className="text-3xl font-semibold text-[#2C3166]">My Credit Card Wallet</h1>
+        </header>
+        <section aria-label="Wallet summary" className="grid gap-4 sm:grid-cols-2">
+          <SummaryCard label="Cards in wallet" value={String(cards.length)} />
+          <SummaryCard label="Total annual fees" value={currency.format(totalAnnualFees)} />
+        </section>
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
+          <section aria-labelledby="wallet-heading">
+            <div className="mb-4 flex items-center justify-between"><h2 id="wallet-heading" className="text-xl font-semibold">Your cards</h2><button className="text-sm text-slate-600 underline hover:text-red-700" onClick={() => setCards([])} type="button">Clear demo data</button></div>
+            {cards.length === 0 ? <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center"><h3 className="text-lg font-medium">Your wallet is empty</h3><p className="mt-2 text-sm text-slate-600">Use the form to add a mock card.</p></div> : <div className="grid gap-4 sm:grid-cols-2">{cards.map((card) => <article key={card.id} className="rounded-lg border border-slate-200 bg-white p-5"><h3 className="text-lg font-semibold">{card.name}</h3><p className="text-sm text-slate-600">{card.issuer}</p><dl className="mt-5 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 text-sm"><div><dt className="text-slate-500">Annual fee</dt><dd className="mt-1 font-medium">{currency.format(card.annualFee)}</dd></div><div><dt className="text-slate-500">Rewards</dt><dd className="mt-1 font-medium">{card.rewardType}</dd></div></dl>{card.notes && <p className="mt-4 text-sm text-slate-600">{card.notes}</p>}</article>)}</div>}
+          </section>
+          <section aria-labelledby="add-card-heading" className="rounded-lg border border-slate-200 bg-slate-50 p-5"><h2 id="add-card-heading" className="text-xl font-semibold">Add a card</h2><p className="mt-1 text-sm text-slate-600">This only adds temporary demo data.</p><form className="mt-5 space-y-4" noValidate onSubmit={handleSubmit}><Field error={errors.name} label="Card name"><input className="input" name="name" placeholder="e.g. Gold Rewards" /></Field><Field error={errors.issuer} label="Issuer"><input className="input" name="issuer" placeholder="e.g. Northstar Bank" /></Field><Field error={errors.annualFee} label="Annual fee"><div className="input flex items-center"><span className="mr-1 text-slate-500">$</span><input className="min-w-0 flex-1 bg-transparent outline-none" inputMode="decimal" min="0" name="annualFee" placeholder="0.00" step="0.01" type="number" /></div></Field><Field error={errors.rewardType} label="Reward type"><select className="input" name="rewardType"><option value="">Select a reward type</option>{rewardTypes.map((type) => <option key={type}>{type}</option>)}</select></Field><Field label="Notes (optional)"><textarea className="input min-h-24 resize-y" name="notes" placeholder="Anything you want to remember about this card" /></Field><button className="w-full rounded-md bg-slate-800 px-4 py-2.5 font-medium text-white hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400" type="submit">Add card</button></form></section>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return <article className="rounded-lg border border-[#2C3166] bg-[#2C3166] p-5 text-white"><p className="text-sm text-slate-200">{label}</p><p className="mt-1 text-3xl font-semibold">{value}</p></article>;
+}
+
+function Field({ children, error, label }: { children: ReactNode; error?: string; label: string }) {
+  return <label className="block"><span className="mb-1.5 block text-sm font-medium">{label}</span>{children}{error && <span className="mt-1 block text-sm text-red-700">{error}</span>}</label>;
 }
