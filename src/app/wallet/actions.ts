@@ -14,6 +14,52 @@ const rewardTypes = new Set(["Cash back", "Travel points", "Miles", "Store rewar
 
 export async function createCard(formData: FormData): Promise<CardActionResult> {
   const { userId } = await auth.protect();
+  const cardData = validateCard(formData);
+
+  if ("fieldErrors" in cardData) {
+    return { fieldErrors: cardData.fieldErrors, success: false };
+  }
+
+  try {
+    await prisma.card.create({
+      data: { ...cardData, userId },
+    });
+  } catch {
+    return { error: "Your card could not be saved. Please try again.", success: false };
+  }
+
+  revalidatePath("/wallet");
+  return { success: true };
+}
+
+export async function updateCard(cardId: string, formData: FormData): Promise<CardActionResult> {
+  const { userId } = await auth.protect();
+  const cardData = validateCard(formData);
+
+  if ("fieldErrors" in cardData) {
+    return { fieldErrors: cardData.fieldErrors, success: false };
+  }
+
+  try {
+    const result = await prisma.card.updateMany({
+      data: cardData,
+      where: { id: cardId, userId },
+    });
+
+    if (result.count === 0) {
+      return { error: "This card was not found in your wallet.", success: false };
+    }
+  } catch {
+    return { error: "Your card could not be updated. Please try again.", success: false };
+  }
+
+  revalidatePath("/wallet");
+  return { success: true };
+}
+
+function validateCard(formData: FormData):
+  | { annualFee: string; issuer: string; name: string; notes: string | null; rewardType: string }
+  | { fieldErrors: Record<string, string> } {
   const name = String(formData.get("name") ?? "").trim();
   const issuer = String(formData.get("issuer") ?? "").trim();
   const annualFeeInput = String(formData.get("annualFee") ?? "").trim();
@@ -32,26 +78,10 @@ export async function createCard(formData: FormData): Promise<CardActionResult> 
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    return { fieldErrors, success: false };
+    return { fieldErrors };
   }
 
-  try {
-    await prisma.card.create({
-      data: {
-        annualFee: annualFee.toFixed(2),
-        issuer,
-        name,
-        notes: notes || null,
-        rewardType,
-        userId,
-      },
-    });
-  } catch {
-    return { error: "Your card could not be saved. Please try again.", success: false };
-  }
-
-  revalidatePath("/wallet");
-  return { success: true };
+  return { annualFee: annualFee.toFixed(2), issuer, name, notes: notes || null, rewardType };
 }
 
 export async function deleteCard(cardId: string): Promise<CardActionResult> {

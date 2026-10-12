@@ -3,7 +3,7 @@
 import { UserButton } from "@clerk/nextjs";
 import { FormEvent, ReactNode, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createCard, deleteCard } from "@/app/wallet/actions";
+import { createCard, deleteCard, updateCard } from "@/app/wallet/actions";
 
 type WalletCard = {
   annualFee: number;
@@ -24,10 +24,11 @@ export default function WalletDashboard({ initialCards, loadError }: { initialCa
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [editingCard, setEditingCard] = useState<WalletCard | null>(null);
   const [isPending, startTransition] = useTransition();
   const totalAnnualFees = initialCards.reduce((total, card) => total + card.annualFee, 0);
 
-  function handleCreateCard(event: FormEvent<HTMLFormElement>) {
+  function handleSaveCard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -44,14 +45,18 @@ export default function WalletDashboard({ initialCards, loadError }: { initialCa
     if (Object.keys(nextErrors).length > 0) return;
 
     startTransition(async () => {
-      const result = await createCard(data);
+      const result = editingCard ? await updateCard(editingCard.id, data) : await createCard(data);
       if (!result.success) {
         setFieldErrors(result.fieldErrors ?? {});
         setFormError(result.error ?? "Please correct the highlighted fields.");
         return;
       }
 
-      form.reset();
+      if (editingCard) {
+        setEditingCard(null);
+      } else {
+        form.reset();
+      }
       router.refresh();
     });
   }
@@ -67,6 +72,12 @@ export default function WalletDashboard({ initialCards, loadError }: { initialCa
 
       router.refresh();
     });
+  }
+
+  function beginEditing(card: WalletCard) {
+    setEditingCard(card);
+    setFieldErrors({});
+    setFormError("");
   }
 
   return (
@@ -106,7 +117,7 @@ export default function WalletDashboard({ initialCards, loadError }: { initialCa
                       <h3 className="text-lg font-semibold">{card.name}</h3>
                       <p className="text-sm text-slate-600">{card.issuer}</p>
                     </div>
-                    <button className="text-sm text-slate-600 underline hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={isPending} onClick={() => handleDeleteCard(card.id)} type="button">Delete</button>
+                    <div className="flex gap-3"><button className="text-sm text-[#2C3166] underline disabled:cursor-not-allowed disabled:opacity-60" disabled={isPending} onClick={() => beginEditing(card)} type="button">Edit</button><button className="text-sm text-slate-600 underline hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={isPending} onClick={() => handleDeleteCard(card.id)} type="button">Delete</button></div>
                   </div>
                   <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 text-sm">
                     <div><dt className="text-slate-500">Annual fee</dt><dd className="mt-1 font-medium">{currency.format(card.annualFee)}</dd></div>
@@ -119,16 +130,15 @@ export default function WalletDashboard({ initialCards, loadError }: { initialCa
           </section>
 
           <section aria-labelledby="add-card-heading" className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-            <h2 id="add-card-heading" className="text-xl font-semibold">Add a card</h2>
-            <p className="mt-1 text-sm text-slate-600">Your card will be saved to your wallet.</p>
+            <div className="flex items-start justify-between gap-3"><div><h2 id="add-card-heading" className="text-xl font-semibold">{editingCard ? "Edit card" : "Add a card"}</h2><p className="mt-1 text-sm text-slate-600">{editingCard ? "Update the details for this card." : "Your card will be saved to your wallet."}</p></div>{editingCard ? <button className="text-sm text-slate-600 underline" disabled={isPending} onClick={() => setEditingCard(null)} type="button">Cancel</button> : null}</div>
             {formError ? <ErrorMessage>{formError}</ErrorMessage> : null}
-            <form className="mt-5 space-y-4" noValidate onSubmit={handleCreateCard}>
-              <Field error={fieldErrors.name} label="Card name"><input className="input" disabled={isPending} name="name" placeholder="e.g. Gold Rewards" /></Field>
-              <Field error={fieldErrors.issuer} label="Issuer"><input className="input" disabled={isPending} name="issuer" placeholder="e.g. Northstar Bank" /></Field>
-              <Field error={fieldErrors.annualFee} label="Annual fee"><div className="input flex items-center"><span className="mr-1 text-slate-500">$</span><input className="min-w-0 flex-1 bg-transparent outline-none" disabled={isPending} inputMode="decimal" min="0" name="annualFee" placeholder="0.00" step="0.01" type="number" /></div></Field>
-              <Field error={fieldErrors.rewardType} label="Reward type"><select className="input" defaultValue="" disabled={isPending} name="rewardType"><option value="">Select a reward type</option>{rewardTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
-              <Field label="Notes (optional)"><textarea className="input min-h-24 resize-y" disabled={isPending} name="notes" placeholder="Anything you want to remember about this card" /></Field>
-              <button className="w-full rounded-md bg-[#2C3166] px-4 py-2.5 font-medium text-white hover:bg-[#20244e] focus:outline-none focus:ring-2 focus:ring-[#2C3166] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60" disabled={isPending} type="submit">{isPending ? "Saving..." : "Add card"}</button>
+            <form key={editingCard?.id ?? "new"} className="mt-5 space-y-4" noValidate onSubmit={handleSaveCard}>
+              <Field error={fieldErrors.name} label="Card name"><input className="input" defaultValue={editingCard?.name} disabled={isPending} name="name" placeholder="e.g. Gold Rewards" /></Field>
+              <Field error={fieldErrors.issuer} label="Issuer"><input className="input" defaultValue={editingCard?.issuer} disabled={isPending} name="issuer" placeholder="e.g. Northstar Bank" /></Field>
+              <Field error={fieldErrors.annualFee} label="Annual fee"><div className="input flex items-center"><span className="mr-1 text-slate-500">$</span><input className="min-w-0 flex-1 bg-transparent outline-none" defaultValue={editingCard?.annualFee} disabled={isPending} inputMode="decimal" min="0" name="annualFee" placeholder="0.00" step="0.01" type="number" /></div></Field>
+              <Field error={fieldErrors.rewardType} label="Reward type"><select className="input" defaultValue={editingCard?.rewardType ?? ""} disabled={isPending} name="rewardType"><option value="">Select a reward type</option>{rewardTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
+              <Field label="Notes (optional)"><textarea className="input min-h-24 resize-y" defaultValue={editingCard?.notes ?? ""} disabled={isPending} name="notes" placeholder="Anything you want to remember about this card" /></Field>
+              <button className="w-full rounded-md bg-[#2C3166] px-4 py-2.5 font-medium text-white hover:bg-[#20244e] focus:outline-none focus:ring-2 focus:ring-[#2C3166] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60" disabled={isPending} type="submit">{isPending ? "Saving..." : editingCard ? "Save changes" : "Add card"}</button>
             </form>
           </section>
         </div>
