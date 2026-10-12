@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Card {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  issuer     String
+  annualFee  Decimal  @db.Decimal(10, 2)
+  rewardType String
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
